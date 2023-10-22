@@ -4,7 +4,9 @@
                 # pohranu koju će naš program koristiti za podatke
 
 data_items:
-    .long 3,67,43,22,45,75,32,12,222,3,21,4,0
+    .long 3,67,43,22,45,75,32,12,222,3,21,4
+data_items_end:
+    
 .section .text
 .globl _start   # Simbol. Pokazuju neku lokaciju u programu
                 # Biti će zamjenjen sa nećime tijkom asemblanja i linkanja,
@@ -19,18 +21,22 @@ _start:         # Labela, definira simbol i daje mu vrijednost.
     # %ebx - Largest data item found
     # %eax - Current data item
 
-    xor     %edi, %edi
-    movl    %edi, %ebx
-    start_loop:
-        movl    data_items(,%edi,4), %eax
-        cmpl    $0, %eax
-        je      loop_end
-        incl    %edi
-        cmpl    %ebx, %eax
-        jle     start_loop
-        movl    %eax, %ebx
-        jmp     start_loop
+	xorl	%ebx, %ebx
+	movl	$data_items, %edi
+	
+	start_loop:
+		movl	(%edi), %eax
+		addl	$4, %edi
+		cmpl	$data_items_end, %edi 
+		je	loop_end
+		cmpl	%ebx, %eax
+		jle	start_loop
+		movl	%eax, %ebx
+		jmp	start_loop
+		
+		 
 
-    loop_end:
-        movl    $1, %eax
-        int     $0x80
+	loop_end:
+		movl	$1, %eax
+		int	$0x80 
+
