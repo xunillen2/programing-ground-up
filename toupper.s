@@ -62,19 +62,46 @@ _start:
 
 		movl	%eax, ST_FD_OUT(%ebp)	# Store fd
 
-
-	clean:
+	read_loop:
+		###READ IN A BLOCK FROM THE INPUT FILE###
 		movl	ST_FD_IN(%ebp), %ebx
-		movl	$CLOSE, %eax
+		movl	$BUFFER_DATA, %ecx
+		movl	$BUFFER_SIZE, %edx
+		movl	$READ, %eax
 		int	$LINUX_SYSCALL
+
+		cmpl	$END_OF_FILE, %eax
+		jle	exit			# If we hit end of file, clean and exit
+
+		pushl	$BUFFER_DATA		# If not, run conversion function
+		pushl	%eax
+		call	convert_to_upper
+		popl	%eax
+		popl	%ebx
+
+		movl	ST_FD_OUT(%ebp), %ebx
+		movl	$BUFFER_DATA, %ecx
+		movl	$BUFFER_SIZE, %edx
+		movl	$WRITE, %eax
+		int	$LINUX_SYSCALL
+
+		jmp	read_loop
+
+        exit:
+	close_fd:
+                movl    ST_FD_IN(%ebp), %ebx
+                movl    $CLOSE, %eax
+                int     $LINUX_SYSCALL
 
                 movl    ST_FD_OUT(%ebp), %ebx
                 movl    $CLOSE, %eax
                 int     $LINUX_SYSCALL
-	exit:
-		movl	$0, %ebx
-		movl	$EXIT, %eax
-		int	$LINUX_SYSCALL
+
+        syscall_exit:
+                movl    $0, %ebx
+                movl    $EXIT, %eax
+                int     $LINUX_SYSCALL
+
 
 # PURPOSE:
 #	Converts chars in buffer to upper
@@ -88,4 +115,48 @@ _start:
 #	%ebx - Lenght of buffer
 #	%edi - Current buffer offset
 #	%cl - Current byte being examined
+
+###CONSTANTS###
+.equ LOWERCASE_A,		'a'
+.equ LOWERCASE_Z,		'z'
+.equ UPPERCASE_CONVERSION,	'A' - 'a'
+
+###STACK POSITIONS###
+.equ ST_BUFFER_LEN,	8
+.equ ST_BUFFER,		12
+
+###SET UP VARIABLES###
+
 convert_to_upper:
+	pushl	%ebp
+	movl	%esp, %ebp
+
+	movl	ST_BUFFER(%ebp), %eax
+	movl	ST_BUFFER_LEN(%ebp), %ebx
+	xorl	%edi, %edi
+
+	# If buffer len is 0, exit
+	cmpl	$0, %ebx
+	je	end_convert_loop
+
+	convert_loop:
+		movb	(%eax, %edi, 1), %cl
+
+		# Go to next byte unless it is between 'a' and 'z'
+		cmpb	$LOWERCASE_A, %cl
+		jl	next_byte
+		cmpb	$LOWERCASE_Z, %cl
+		jg	next_byte
+
+		# Convert to upper
+		addb	$UPPERCASE_CONVERSION, %cl
+		movb	%cl, (%eax, %edi, 1)
+		next_byte:
+			incl	%edi
+			cmpl	%edi, %ebx
+			jne	convert_loop
+
+	end_convert_loop:	# No return values
+		movl	%ebp, %esp
+		popl	%ebp
+		ret
